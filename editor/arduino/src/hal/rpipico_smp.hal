@@ -1,0 +1,5 @@
+# HAL configuration
+# Format :
+# Board type, FQBN
+
+Raspberry Pico SMP,		rp2040:rp2040:rpipico

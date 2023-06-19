@@ -3,9 +3,13 @@ ModbusSlave.cpp - Source for Modbus Slave Library
 Copyright (C) 2022 OpenPLC - Thiago Alves
 */
 
+#include "defines.h"
 #include "ModbusSlave.h"
 
 //Global Modbus vars
+#ifdef FREERTOS
+SemaphoreHandle_t modbus_buffer_mutex;
+#endif
 struct MBinfo modbus;
 uint8_t mb_frame[MAX_MB_FRAME];
 uint16_t mb_frame_len;
@@ -29,8 +33,27 @@ uint16_t mb_t35; // frame delay
 #endif
 #endif
 
+#ifdef FREERTOS
+bool mbmutex_get( TickType_t xTicksToWait )
+{
+    if( xSemaphoreTake( modbus_buffer_mutex, xTicksToWait ) == pdTRUE ) {
+        return true;
+    }
+    return false;
+}
+
+void mbmutex_release()
+{
+    xSemaphoreGive( modbus_buffer_mutex );
+}
+#endif
+
 bool init_mbregs(uint8_t size_holding, uint8_t size_coils, uint8_t size_inputregs, uint8_t size_inputstatus)
 {
+    #ifdef FREERTOS
+    modbus_buffer_mutex = xSemaphoreCreateMutex();
+    #endif
+
     //Save sizes
     modbus.holding_size = size_holding;
     modbus.coils_size = size_coils;
@@ -426,6 +449,11 @@ void process_mbpacket()
     uint16_t field1 = (uint16_t)mb_frame[2] << 8 | (uint16_t)mb_frame[3];
     uint16_t field2 = (uint16_t)mb_frame[4] << 8 | (uint16_t)mb_frame[5];
     
+    #ifdef FREERTOS
+    // Try to get Mutex; respond with error if timeout.
+    if( mbmutex_get( 50 )) {
+    #endif
+
     switch (fcode) 
     {
         case MB_FC_WRITE_REG:
@@ -471,6 +499,12 @@ void process_mbpacket()
         default:
             exceptionResponse(fcode, MB_EX_ILLEGAL_FUNCTION);
     }
+    #ifdef FREERTOS
+    mbmutex_release();
+    } else {
+        exceptionResponse(fcode, MB_EX_SLAVE_FAILURE);
+    }
+    #endif
 }
 
 

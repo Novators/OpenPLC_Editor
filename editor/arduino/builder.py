@@ -11,6 +11,13 @@ import wx
 global compiler_logs
 compiler_logs = ''
 
+def ospath(dir, fn = ""):
+    if fn == "" and not dir.endswith("/"):
+        dir = dir + "/"
+    if os.name == 'nt':
+        return dir.replace("/", '\\') + fn
+    else:
+        return dir + fn
 
 def scrollToEnd(txtCtrl):
     if os_platform.system() != 'Darwin':
@@ -35,11 +42,7 @@ def runCommand(command):
 
 def loadHals():
     # load hals list from json file, or construct it
-    if (os.name == 'nt'):
-        jfile = 'editor\\arduino\\examples\\Baremetal\\hals.json'
-    else:
-        jfile = 'editor/arduino/examples/Baremetal/hals.json'
-    
+    jfile = ospath('editor/arduino/examples/Baremetal/', 'hals.json')
     f = open(jfile, 'r')
     jsonStr = f.read()
     f.close()
@@ -47,16 +50,13 @@ def loadHals():
 
 def saveHals(halObj):
     jsonStr = json.dumps(halObj)
-    if (os.name == 'nt'):
-        jfile = 'editor\\arduino\\examples\\Baremetal\\hals.json'
-    else:
-        jfile = 'editor/arduino/examples/Baremetal/hals.json'
+    jfile = ospath('editor/arduino/examples/Baremetal/', 'hals.json')
     f = open(jfile, 'w')
     f.write(jsonStr)
     f.flush()
     f.close()
 
-def build(st_file, platform, source_file, port, txtCtrl, update_subsystem):
+def build(st_file, board_type, platform, source_file, port, txtCtrl, update_subsystem):
     global compiler_logs
     compiler_logs = ''
     hals = loadHals()
@@ -64,11 +64,16 @@ def build(st_file, platform, source_file, port, txtCtrl, update_subsystem):
     #Check if board is installed
     board_installed = False
     core = ''
-    for board in hals:
-        if hals[board]['platform'] == platform:
-            core = hals[board]['core']
-            if hals[board]['version'] != "0":
-                board_installed = True
+    metal = 'Baremetal.ino'
+    if board_type in hals:
+        core = hals[board_type]['core']
+        if hals[board_type]['version'] != "0":
+            board_installed = True
+        if 'metal' in hals[board_type]:
+            metal = hals[board_type]['metal']
+    # Copy correct Baremetal sketch
+    pth = ospath('editor/arduino/examples/Baremetal/')
+    shutil.copyfile(pth + metal + '.tpl', pth + 'Baremetal.ino')
     
     #Check MatIEC compiler
     if (os.path.exists("editor/arduino/bin/iec2c") or os.path.exists("editor/arduino/bin/iec2c.exe") or os.path.exists("editor/arduino/bin/iec2c_mac")):
@@ -102,13 +107,13 @@ def build(st_file, platform, source_file, port, txtCtrl, update_subsystem):
             compiler_logs += "Updating support for " + platform + ". Please be patient and wait while " + platform + " is being installed...\n"
             wx.CallAfter(txtCtrl.SetValue, compiler_logs)
 
-        cli_command = ''
+        cli_command = ospath('editor/arduino/bin/')
         if os_platform.system() == 'Windows':
-            cli_command = 'editor\\arduino\\bin\\arduino-cli-w32'
+            cli_command = cli_command + 'arduino-cli-w32'
         elif os_platform.system() == 'Darwin':
-            cli_command = 'editor/arduino/bin/arduino-cli-mac'
+            cli_command = cli_command + 'arduino-cli-mac'
         else:
-            cli_command = 'editor/arduino/bin/arduino-cli-l64'
+            cli_command = cli_command + 'arduino-cli-l64'
 
         """
         ### ARDUINO-CLI CHEAT SHEET ###
@@ -133,6 +138,7 @@ https://arduino.esp8266.com/stable/package_esp8266com_index.json \
 https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json \
 https://github.com/stm32duino/BoardManagerFiles/raw/main/package_stmicroelectronics_index.json \
 https://raw.githubusercontent.com/CONTROLLINO-PLC/CONTROLLINO_Library/master/Boards/package_ControllinoHardware_index.json \
+https://github.com/earlephilhower/arduino-pico/releases/download/global/package_rp2040_index.json \
 "2>&1"')
         wx.CallAfter(txtCtrl.SetValue, compiler_logs)
         wx.CallAfter(scrollToEnd, txtCtrl)
@@ -143,7 +149,8 @@ https://raw.githubusercontent.com/CONTROLLINO-PLC/CONTROLLINO_Library/master/Boa
 https://arduino.esp8266.com/stable/package_esp8266com_index.json \
 https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json \
 https://github.com/stm32duino/BoardManagerFiles/raw/main/package_stmicroelectronics_index.json \
-https://raw.githubusercontent.com/CONTROLLINO-PLC/CONTROLLINO_Library/master/Boards/package_ControllinoHardware_index.json')
+https://raw.githubusercontent.com/CONTROLLINO-PLC/CONTROLLINO_Library/master/Boards/package_ControllinoHardware_index.json \
+https://github.com/earlephilhower/arduino-pico/releases/download/global/package_rp2040_index.json')
         wx.CallAfter(txtCtrl.SetValue, compiler_logs)
         wx.CallAfter(scrollToEnd, txtCtrl)
 
@@ -202,10 +209,7 @@ arduinomqttclient')
     compiler_logs += "Compiling .st file...\n"
     wx.CallAfter(txtCtrl.SetValue, compiler_logs)
     wx.CallAfter(scrollToEnd, txtCtrl)
-    if (os.name == 'nt'):
-        base_path = 'editor\\arduino\\src\\'
-    else:
-        base_path = 'editor/arduino/src/'
+    base_path = ospath('editor/arduino/src/')
     f = open(base_path+'plc_prog.st', 'w')
     f.write(st_file)
     f.flush()
@@ -385,12 +389,8 @@ void updateTime()
     f.close()
 
     # Copy HAL file
-    if os_platform.system() == 'Windows':
-        source_path = 'editor\\arduino\\src\\hal\\'
-        destination = 'editor\\arduino\\src\\arduino.cpp'
-    else:
-        source_path = 'editor/arduino/src/hal/'
-        destination = 'editor/arduino/src/arduino.cpp'
+    source_path = ospath('editor/arduino/src/hal/')
+    destination = ospath('editor/arduino/src/', 'arduino.cpp')
 
     shutil.copyfile(source_path + source_file, destination)
 
@@ -398,12 +398,10 @@ void updateTime()
     # We need to write the hal specific pin size defines on the global defines.h so that it is
     # available everywhere
 
-    if os_platform.system() == 'Windows':
-        define_path = 'editor\\arduino\\examples\\Baremetal\\'
-    else:
-        define_path = 'editor/arduino/examples/Baremetal/'
-    file = open(define_path+'defines.h', 'r')
+    define_path = ospath('editor/arduino/examples/Baremetal/', 'defines.h')
+    file = open(define_path, 'r')
     define_file = file.read() + '\n\n//Pin Array Sizes\n'
+    file.close()
     hal = open(destination, 'r')
     lines = hal.readlines()
     for line in lines:
@@ -415,13 +413,10 @@ void updateTime()
             define_file += line
         if (line.find('define NUM_ANALOG_OUTPUT') > 0):
             define_file += line
+    hal.close()
 
     # Write defines.h file back to disk
-    if os_platform.system() == 'Windows':
-        define_path = 'editor\\arduino\\examples\\Baremetal\\'
-    else:
-        define_path = 'editor/arduino/examples/Baremetal/'
-    f = open(define_path+'defines.h', 'w')
+    f = open(define_path, 'w')
     f.write(define_file)
     f.flush()
     f.close()
@@ -446,13 +441,13 @@ void updateTime()
 
     if os_platform.system() == 'Windows':
         compilation = subprocess.Popen(['editor\\arduino\\bin\\arduino-cli-w32', 'compile', '-v', '--libraries=editor\\arduino', '--build-property', 'compiler.c.extra_flags="-Ieditor\\arduino\\src\\lib"', '--build-property',
-                                       'compiler.cpp.extra_flags="-Ieditor\\arduino\\src\\lib"', '--export-binaries', '-b', platform, 'editor\\arduino\\examples\\Baremetal\\Baremetal.ino'], creationflags=0x08000000, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                                       'compiler.cpp.extra_flags="-Ieditor\\arduino\\src\\lib"', '--export-binaries', '-b', platform, 'editor\\arduino\\examples\\Baremetal\\'+metal+'.ino'], creationflags=0x08000000, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     elif os_platform.system() == 'Darwin':
         compilation = subprocess.Popen(['editor/arduino/bin/arduino-cli-mac', 'compile', '-v', '--libraries=editor/arduino', '--build-property', 'compiler.c.extra_flags="-Ieditor/arduino/src/lib"', '--build-property',
-                                       'compiler.cpp.extra_flags="-Ieditor/arduino/src/lib"', '--export-binaries', '-b', platform, 'editor/arduino/examples/Baremetal/Baremetal.ino'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                                       'compiler.cpp.extra_flags="-Ieditor/arduino/src/lib"', '--export-binaries', '-b', platform, 'editor/arduino/examples/Baremetal/'+metal+'.ino'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     else:
         compilation = subprocess.Popen(['editor/arduino/bin/arduino-cli-l64', 'compile', '-v', '--libraries=editor/arduino', '--build-property', 'compiler.c.extra_flags="-Ieditor/arduino/src/lib"', '--build-property',
-                                       'compiler.cpp.extra_flags="-Ieditor/arduino/src/lib"', '--export-binaries', '-b', platform, 'editor/arduino/examples/Baremetal/Baremetal.ino'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                                       'compiler.cpp.extra_flags="-Ieditor/arduino/src/lib"', '--export-binaries', '-b', platform, 'editor/arduino/examples/Baremetal/'+metal+'.ino'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout, stderr = compilation.communicate()
     compiler_logs += stdout.decode('UTF-8')
     compiler_logs += stderr.decode('UTF-8')
@@ -479,12 +474,8 @@ void updateTime()
             wx.CallAfter(txtCtrl.SetValue, compiler_logs)
             wx.CallAfter(scrollToEnd, txtCtrl)
         else:
-            cwd = os.getcwd()
             compiler_logs += '\nOUTPUT DIRECTORY:\n'
-            if os_platform.system() == 'Windows':
-                compiler_logs += cwd + '\\editor\\arduino\\examples\\Baremetal\\build\n'
-            else:
-                compiler_logs += cwd + '/editor/arduino/examples/Baremetal/build\n'
+            compiler_logs += ospath(ospath(os.getcwd())+'editor/arduino/examples/Baremetal','build') + '\n'
             compiler_logs += '\nCOMPILATION DONE!'
             wx.CallAfter(txtCtrl.SetValue, compiler_logs)
             wx.CallAfter(scrollToEnd, txtCtrl)

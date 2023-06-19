@@ -7,7 +7,11 @@ Copyright (C) 2022 OpenPLC - Thiago Alves
 #define MODBUSSLAVE_H
 
 #include <Arduino.h>
-#include "defines.h"
+
+#ifdef FREERTOS
+#include "FreeRTOS.h"
+#include "semphr.h"
+#endif
 
 #define bitRead(value, bit) (((value) >> (bit)) & 0x01)
 //#define bitSet(value, bit) ((value) |= (1UL << (bit)))
@@ -103,6 +107,10 @@ extern uint16_t mb_t35; // frame delay
 #endif
 #endif
 
+#ifdef FREERTOS
+bool mbmutex_get( TickType_t xTicksToWait );
+void mbmutex_release();
+#endif
 bool init_mbregs(uint8_t size_holding, uint8_t size_coils, uint8_t input_regs, uint8_t input_status);
 bool get_discrete(uint16_t addr, bool regtype);
 void write_discrete(uint16_t addr, bool regtype, bool value);
